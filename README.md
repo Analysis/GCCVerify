@@ -8,13 +8,23 @@ GCCVerify is a simple Java utility by http://github.com/kaysond that reads JSON-
 * Developers can easily add new firmwares by submitting github pull requests
 
 ## Run Requirements
-* Java 8.0 or newer
-* avrdude, libusb0.dll, and an avrdude.conf (included in release packages)
+These are all included in release zips (and can be found in the build folder)
+* Java 8.0 or newer, 64bit
+* avrdude, libusb0.dll, and an avrdude.conf
+* GCCVerify, jssc, and gson jar files
+* Manifest file and firmware binaries (included in zips, also downloaded automatically except in offline mode)
 
 ## Build Requirements
 * [jssc 2.8.0](https://github.com/scream3r/java-simple-serial-connector)
 * [gson 2.8.1](https://github.com/google/gson)
-* JDK 1.8.0
+* [launch4j](http://launch4j.sourceforge.net/)
+* JDK 1.8.0 64bit
+
+## Build Instructions
+1. Compile the source (e.g. `javac -cp "..\build\jars\*" GCCVerify\*.java`)
+2. Create GCCVerify.jar with the included manifest (e.g. `jar cvfm ..\build\jars\GCCVerify.jar META-INF\MANIFEST.MF GCCVerify\*.class`)
+3. Run launch4j on config.xml (e.g. `launch4jc.exe config.xml`)
+Note: GCCVerify.jar is included in the repo so steps 1 and 2 can be skipped
 
 ## Command Line Options
 * -d : Enables debug mode
@@ -37,6 +47,8 @@ mod:
 * vals: int[] - values associated with the mod
 
 See below for allowed mod names and their values.
+
+Check the examples folder for a compliant version of the original Hax/WatchingTime firmware
 
 ## Mods
 The following mods are supported:
