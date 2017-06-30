@@ -13,7 +13,7 @@ GCCVerify is a simple Java utility by http://github.com/kaysond that reads JSON-
 * Should theoretically work on Mac/Linux if run via the JRE directly, but it hasn't been tested.
 
 ## Instructions
-1. Download the latest release zip
+1. Download the latest release zip ("Releases" link above)
 2. Unzip the entire contents to a folder
 3. Plug in the Arduino, wait for driver install if necessary
 4. Run GCCVerify.exe
@@ -67,4 +67,4 @@ See below for allowed mod names and their values.
 Check the examples folder for a compliant version of the v2 Hax/WatchingTime firmware
 
 ## Mods
-To be completed. See build/lib/manifest.json
+To be completed. See [build/lib/manifest.json](build/lib/manifest.json)
