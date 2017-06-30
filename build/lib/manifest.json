@@ -1,38 +1,109 @@
 {
-  "timestamp": 1498688574,
-  "modSpecs": [
-    {
-      "name": "dashback",
-      "permitted": true,
-      "maxVal": 2,
-      "minVal": 0
-    },
-    {
-      "name": "GCCVerifyTestMod1",
-      "permitted": true,
-      "maxVal": 2,
-      "minVal": 0
-    },
-    {
-      "name": "GCCVerifyTestMod2",
-      "permitted": true,
-      "maxVal": 1200,
-      "minVal": 0
-    },
-    {
-      "name": "perfect_angle",
-      "permitted": false,
-      "maxVal": 0,
-      "minVal": 0
-    }
-  ],
-  "firmwareImages": [
-    {
-      "name": "GCCVerifyTestFW-0.1",
-      "permitted": true,
-      "hash": "6D146BACBB15682903B41B5BECE1E37302A66F31",
-      "size": 32670,
-      "url": "https://raw.githubusercontent.com/kaysond/GCCVerify/master/build/lib/GCCVerifyTestFW-0.1.hex"
-    }
-  ]
+   "timestamp":1498688574,
+   "modSpecs":[
+      {
+         "name":"dash_back",
+         "permitted":true,
+         "valueSpecs":[
+            {
+               "name":"frames",
+               "maxVal":2,
+               "minVal":0
+            }
+         ]
+      },
+      {
+         "name":"perfect_angles",
+         "permitted":true,
+         "valueSpecs":[
+            {
+               "name":"radius",
+               "maxVal":128,
+               "minVal":75
+            },
+            {
+               "name":"angle_min",
+               "maxVal":10,
+               "minVal":6
+            },
+            {
+               "name":"angle_max",
+               "maxVal":19,
+               "minVal":0
+            }
+         ]
+      },
+      {
+         "name":"max_vectors",
+         "permitted":true,
+         "valueSpecs":[
+            {
+               "name":"analog_radius",
+               "maxVal":128,
+               "minVal":75
+            },
+            {
+               "name":"analog_angle",
+               "maxVal":6,
+               "minVal":0
+            },
+            {
+               "name":"c_radius",
+               "maxVal":128,
+               "minVal":79
+            },
+            {
+               "name":"c_angle",
+               "maxVal":17,
+               "minVal":0
+            }
+         ]
+      },
+      {
+         "name":"shield_drop_expand",
+         "permitted":true,
+         "valueSpecs":[
+            {
+               "name":"radius",
+               "maxVal":128,
+               "minVal":72
+            },
+            {
+               "name":"angle",
+               "maxVal":4,
+               "minVal":0
+            }
+         ]
+      },
+      {
+         "name":"dolphin_fix",
+         "permitted":true,
+         "valueSpecs":[
+            {
+               "name":"analog_radius",
+               "maxVal":8,
+               "minVal":0
+            },
+            {
+               "name":"c_radius",
+               "maxVal":8,
+               "minVal":0
+            },
+            {
+               "name":"dash_back_frames",
+               "maxVal":6,
+               "minVal":0
+            }
+         ]
+      }
+   ],
+   "firmwareImages":[
+      {
+         "name":"Hax-WatchingTime-2.1",
+         "permitted":true,
+         "hash":"9DB8C363F9E1290325E7CD697EA599CB2893725E",
+         "size":32670,
+         "url":"https://raw.githubusercontent.com/kaysond/GCCVerify/master/build/lib/Hax-WatchingTime-2.1.bin"
+      }
+   ]
 }

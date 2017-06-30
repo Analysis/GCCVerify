@@ -74,6 +74,11 @@ public class Manifest {
 	class FirmwareModSpec {
 		public String name;
 		public boolean permitted;
+		public ModValueSpec[] valueSpecs = new ModValueSpec[]{};
+	}
+
+	class ModValueSpec {
+		public String name;
 		public int maxVal;
 		public int minVal;
 	}

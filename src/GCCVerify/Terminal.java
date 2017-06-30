@@ -38,7 +38,7 @@ public class Terminal {
 		for (String arg : args) {
 			if ( arg.equals("-d") ) {
 				System.out.printf("Debug mode enabled.%n%n");
-				GCCVerifier.debug = true;
+				Verifier.debug = true;
 				Manifest.debug = true;
 			}
 			if ( arg.equals("-o") ) {
@@ -49,29 +49,29 @@ public class Terminal {
 			
 		//Startup: Load manifests, check for updates
 		boolean loadedRemote = false;
-		if ( !GCCVerifier.loadLocalManifest() ) {
+		if ( !Verifier.loadLocalManifest() ) {
 			if ( offline ) {
 				System.out.println("ERROR: Could not load any manifest.");
 				System.exit(1);
 				
 			}
 			else {
-				if ( !GCCVerifier.loadRemoteManifest() ) {
+				if ( !Verifier.loadRemoteManifest() ) {
 					System.out.println("ERROR: Could not load any manifest.");
 					System.exit(1);
 				}
 				else {
-					GCCVerifier.saveRemoteManifestToLocal();
-					GCCVerifier.useLocalManifest();
+					Verifier.saveRemoteManifestToLocal();
+					Verifier.useLocalManifest();
 					loadedRemote = true;
 				}
 			}
 		}
 		else {
-			GCCVerifier.useLocalManifest();
+			Verifier.useLocalManifest();
 		}
 
-		if ( !offline && !loadedRemote && GCCVerifier.loadRemoteManifest() && GCCVerifier.isRemoteManifestNewer() ){
+		if ( !offline && !loadedRemote && Verifier.loadRemoteManifest() && Verifier.isRemoteManifestNewer() ){
 			while (true) {
 				System.out.println("A manifest update is available! Download update?");
 				System.out.println("0: No");
@@ -92,15 +92,15 @@ public class Terminal {
 				}
 				else {
 					System.out.println("");
-					GCCVerifier.saveRemoteManifestToLocal();
-					GCCVerifier.useLocalManifest();
+					Verifier.saveRemoteManifestToLocal();
+					Verifier.useLocalManifest();
 					break;
 				}
 			}
 		}
 
 		if ( !offline )
-			GCCVerifier.updateLibFromManifest();
+			Verifier.updateLibFromManifest();
 
 		//Main console loop
 		while ( true ) {
@@ -141,9 +141,9 @@ public class Terminal {
 				}
 
 				//Choose the platform
-				GCCVerifier.Platform platform;
+				Verifier.Platform platform;
 				while (true) {
-					GCCVerifier.Platform[] platformVals = GCCVerifier.Platform.values();
+					Verifier.Platform[] platformVals = Verifier.Platform.values();
 					if ( platformVals.length == 1 ) {
 						platform = platformVals[0];
 						System.out.printf("Platform auto-selected.%n%n");
@@ -172,10 +172,10 @@ public class Terminal {
 
 				long start = System.currentTimeMillis();
 
-				GCCVerifier verifier = new GCCVerifier(portName);
+				Verifier verifier = new Verifier(portName);
 				verifier.selectPlatform(platform);
 
-				GCCVerifier.VerifyParamsResult paramResult = verifier.verifyParams();
+				Verifier.VerifyParamsResult paramResult = verifier.verifyParams();
 				boolean firmwareSuccess = verifier.verifyFirmwareImage();
 
 				System.out.print(paramResult.output);

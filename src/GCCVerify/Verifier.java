@@ -1,5 +1,5 @@
 /**
- * GCCVerifier.java is a class for verifying the contents of a microcontroller-based Gamcube
+ * Verifier.java is a class for verifying the contents of a microcontroller-based Gamcube
  * controller firmware. The two main verification functions request JSON-encoded
  * parameters of the firmware and download the program memory. These are verified
  * against a user-specified JSON-encoded manifest file. Functions are included to
@@ -44,7 +44,7 @@ import java.security.NoSuchAlgorithmException;
 import GCCVerify.Manifest;
 import GCCVerify.Manifest.FirmwareImage;
 
-public class GCCVerifier {
+public class Verifier {
 
 	public static enum Platform {ARDUINO};
 	public static final String manifestURL = "https://raw.githubusercontent.com/kaysond/GCCVerify/master/build/lib/manifest.json";
@@ -61,7 +61,7 @@ public class GCCVerifier {
 	private int stopBits;
 	private int parity;
 
-	public GCCVerifier(String portName) {
+	public Verifier(String portName) {
 		serialPort = new SerialPort(portName);
 		if ( !isManifestLoaded() ) {
 			loadLocalManifest();
@@ -99,25 +99,41 @@ public class GCCVerifier {
 					serialPort.setDTR(true);
 					serialPort.setRTS(false);
 					serialPort.setRTS(true);
-					Thread.sleep(500);
+					Thread.sleep(250);
 				}
-				//Wait for bootloader
-				Thread.sleep(2000);
+				//Wait for bootloader (Nano takes ~920ms after the for loop finishes to boot, immediately do a Serial.begin() and Serial.println())
+				Thread.sleep(1000);
 			}
 
+			//Send the string once every 0.25s for 1s until something shows up on the serial port
 			System.out.printf("Requesting firmware parameters...%n");
-			serialPort.writeString("GCCVerify");
+			for ( int i = 0; i < 4; i++ ) {
+				serialPort.writeString("GCCVerify");
+				Thread.sleep(250);
+				if ( serialPort.getInputBufferBytesCount() > 0 ) 
+					break;
+			}
 
-			//Receive serial data for 1s
+			//Receive serial data until terminating "\r\n" or for up to 2s (2400 bytes at 9600baud)
 			String firmwareJSON = "";
-			long endTime = System.currentTimeMillis() + 1000;
+			long endTime = System.currentTimeMillis() + 2000;
 			while ( System.currentTimeMillis() < endTime ) {
 				if ( serialPort.getInputBufferBytesCount() > 0 ) {
 					firmwareJSON += serialPort.readString();
+					if ( firmwareJSON.indexOf("\r\n") > 0 )
+						break;
 				}
 			}
 			serialPort.closePort();
 			System.out.printf("Received %d bytes. Parsing...%n", firmwareJSON.length());
+
+			//Skip serial data up to the first "{" and drop anything after the "\r\n" if it exists
+			int bracketIdx = firmwareJSON.indexOf("{");
+			if ( bracketIdx > - 1)
+				firmwareJSON = firmwareJSON.substring(bracketIdx);
+			int termIdx = firmwareJSON.indexOf("\r\n");
+			if ( termIdx > -1 )
+				firmwareJSON = firmwareJSON.substring(0, termIdx);
 
 			Gson gson = new GsonBuilder().setPrettyPrinting().create();
 			FirmwareParams firmwareParams = new FirmwareParams();
@@ -199,14 +215,31 @@ public class GCCVerifier {
 														  String.format("%n"));
 						}
 						else {
-							for ( int val : mod.vals ) {
-								if ( val > modSpec.maxVal || val < modSpec.minVal ) {
+							for ( FirmwareModValue value : mod.values ) {
+								int valIdx = -1;
+								for ( int i = 0; i < modSpec.valueSpecs.length; i++ ) {
+									if ( modSpec.valueSpecs[i].name.equals(value.name) ) {
+										valIdx = i;
+										break;
+									}
+								}
+								if ( valIdx == -1 ) {
 									flagErr = true;
 									flagIllegalVal = true;
 									output += mod.toString(String.format("--------------------------------%n" + 
-																		 "| **Illegal Mod Values Found** |%n"), 
+																		 "| **Unknown Mod Value Found**  |%n"), 
 								  							String.format("%n"));
-									break;
+								}
+								else {
+									Manifest.ModValueSpec valueSpec = modSpec.valueSpecs[valIdx];
+									if ( value.value > valueSpec.maxVal || value.value < valueSpec.minVal ) {
+										flagErr = true;
+										flagIllegalVal = true;
+										output += mod.toString(String.format("--------------------------------%n" + 
+																			 "| **Illegal Mod Values Found** |%n"), 
+									  							String.format("%n"));
+										break;
+									}
 								}
 							}
 						}
@@ -242,13 +275,40 @@ public class GCCVerifier {
 			return false;
 		}
 		try {
+			//Find the right firmware in the manifest
+			int fwIdx = -1;
+			for ( int i = 0; i < activeManifest.firmwareImages.length; i++ ) {
+				if ( activeManifest.firmwareImages[i].name.equals(firmwareName) ) {
+					fwIdx = i;
+					break;
+				}
+			}
+			if ( fwIdx == -1 ) {
+				System.out.printf("Could not find firmware %s in manifest.%n%n", firmwareName);
+				return false;
+			}
+			FirmwareImage libImg = activeManifest.firmwareImages[fwIdx];
+			if ( !libImg.permitted ) {
+				System.out.printf("Firmware %s is not permitted.%n%n", firmwareName);
+				return false;
+			}
+
+			Path libFWPath = Paths.get("lib", firmwareName + ".bin");
+			System.out.printf("Verifying library firmware image...%n");
+			if ( !verifyLibFirmwareImage(libFWPath, libImg.size, libImg.hash) ) {
+				System.out.printf("Could not verify controller firmware because library image does not match manifest.%n%n");
+				return false;
+			}
+			System.out.println("Done.");
+
+			//Get the firmware from the controller
 			if ( platform == Platform.ARDUINO ) {
 				Path avrdude = Paths.get("bin", "avrdude.exe");
 				Path avrdudeConf = Paths.get("etc", "avrdude.conf");
 				if ( Files.isExecutable(avrdude) ) {
 					if ( Files.isReadable(avrdudeConf) ) {
 						System.out.println("Downloading controller firmware (this can take a while)...");
-						String[] command = {avrdude.toString(), "-C" + avrdudeConf.toString(), "-v", "-patmega328p", "-carduino", "-P" + serialPort.getPortName(), "-Uflash:r:\"progmem.hex\":r", "-b57600"};
+						String[] command = {avrdude.toString(), "-C" + avrdudeConf.toString(), "-v", "-patmega328p", "-carduino", "-P" + serialPort.getPortName(), "-Uflash:r:\"progmem.bin\":r", "-b57600"};
 						ProcessBuilder pb = new ProcessBuilder(command);
 						pb.redirectErrorStream(true);
 
@@ -278,47 +338,23 @@ public class GCCVerifier {
 					throw new FileNotFoundException("Could not find avrdude. Please check the bin directory.");
 				}
 			}
-			//Find the right firmware in the manifest
-			int fwIdx = -1;
-			for ( int i = 0; i < activeManifest.firmwareImages.length; i++ ) {
-				if ( activeManifest.firmwareImages[i].name.equals(firmwareName) ) {
-					fwIdx = i;
-					break;
-				}
-			}
-			if ( fwIdx == -1 ) {
-				System.out.printf("Could not find firmware %s in manifest.%n", firmwareName);
-				return false;
-			}
-			FirmwareImage libImg = activeManifest.firmwareImages[fwIdx];
-			if ( !libImg.permitted ) {
-				System.out.printf("Firmware %s is not permitted.%n", firmwareName);
-				return false;
-			}
 
-			Path libFWPath = Paths.get("lib", firmwareName + ".hex");
-			System.out.printf("Verifying library firmware image...%n");
-			if ( !verifyLibFirmwareImage(libFWPath, libImg.size, libImg.hash) ) {
-				System.out.printf("Could not verify controller firmware because library image does not match manifest.%n%n");
-				return false;
-			}
-			System.out.println("Done.");
 			System.out.printf("Comparing to firmware in library...%n");
-			byte[] progmem = Files.readAllBytes(Paths.get("progmem.hex"));
-			byte[] libFW = Files.readAllBytes(Paths.get("lib", firmwareName + ".hex"));
+			byte[] progmem = Files.readAllBytes(Paths.get("progmem.bin"));
+			byte[] libFW = Files.readAllBytes(Paths.get("lib", firmwareName + ".bin"));
 			if ( progmem.length != libFW.length ) {
 				System.out.printf("Controller firmware is not the same size as firmware in library.%n%n");
-				Files.delete(Paths.get("progmem.hex"));
+				Files.delete(Paths.get("progmem.bin"));
 				return false;
 			}
 			for ( int i = 0; i < libFW.length; i++ ) {
 				if ( progmem[i] != libFW[i] ) {
 					System.out.printf("Controller firmware does not match firmware in library at byte %d.%n%n", i);
-					Files.delete(Paths.get("progmem.hex"));
+					Files.delete(Paths.get("progmem.bin"));
 					return false;
 				}
 			}
-			Files.delete(Paths.get("progmem.hex"));
+			Files.delete(Paths.get("progmem.bin"));
 			System.out.printf("Controller firmware matches %s in library.%n%n", firmwareName);
 			return true;
 		} catch ( FileNotFoundException e ) {
@@ -338,7 +374,7 @@ public class GCCVerifier {
 		System.out.println("Loading remote manifest...");
 		//Get the latest manifest
 		try {
-			remoteManifest.load(new URL(GCCVerifier.manifestURL));
+			remoteManifest.load(new URL(Verifier.manifestURL));
 			System.out.printf("Done.%n%n");
 			return true;
 		} catch ( JsonSyntaxException e ) {
@@ -372,7 +408,7 @@ public class GCCVerifier {
 		System.out.printf("Updating firmware images...%n");
 		boolean flagErr = false;
 		for ( Manifest.FirmwareImage img : activeManifest.firmwareImages ) {
-			Path imgPath = Paths.get("lib", img.name + ".hex");
+			Path imgPath = Paths.get("lib", img.name + ".bin");
 			if ( Files.isReadable(imgPath) ) {
 				System.out.printf("%s found. Verifying...%n", img.name);
 				//Get length and SHA1 hash
@@ -551,7 +587,7 @@ public class GCCVerifier {
 	class FirmwareMod {
 		public String name = "";
 		public boolean enabled;
-		public int[] vals = {};
+		public FirmwareModValue[] values = new FirmwareModValue[]{};
 
 		public String toString(String prefix, String suffix) {
 			Formatter formatter = new Formatter(new StringBuilder());
@@ -559,13 +595,13 @@ public class GCCVerifier {
 				formatter.format("%s", prefix);
 			formatter.format("--------------------------------%n");
 			formatter.format("|  Name:                       |%n");
-			formatter.format("|     %-20s     |%n", name);
+			formatter.format("|    %-20s      |%n", name);
 			formatter.format("|%30s|%n", "");
 			formatter.format("|  Enabled: %-19s|%n", (enabled ? "Yes" : "No"));
 			formatter.format("|%30s|%n", "");
 			formatter.format("|  Values:                     |%n");
-			for ( int val : vals ) {
-				formatter.format("|     %-20d     |%n", val);
+			for ( FirmwareModValue value : values ) {
+				formatter.format("|    %-26s|%n", new Formatter().format("%s: %d", value.name, value.value).toString());
 			}
 			formatter.format("--------------------------------%n");
 			if ( suffix.length() > 0 )
@@ -574,6 +610,11 @@ public class GCCVerifier {
 			return formatter.toString();
 		}
 
+	}
+
+	class FirmwareModValue {
+		public String name = "";
+		public int value = Integer.MAX_VALUE; //This should trip any value check if the firmware does not properly respond with a value
 	}
 
 } //GCCVerify
