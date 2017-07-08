@@ -35,6 +35,7 @@ import java.io.*;
 import java.net.URL;
 import java.util.Scanner;
 import java.util.Formatter;
+import java.util.stream.Stream;
 import static java.util.InputMismatchException.*;
 import java.nio.channels.*;
 import com.google.gson.*;
@@ -138,13 +139,15 @@ public class Verifier {
 			Gson gson = new GsonBuilder().setPrettyPrinting().create();
 			FirmwareParams firmwareParams = new FirmwareParams();
 			try {
-				if ( firmwareJSON == "" )
+				if ( firmwareJSON.length() == 0 )
 					throw new JsonSyntaxException("JSON string was empty");
 				firmwareParams = gson.fromJson(firmwareJSON, FirmwareParams.class);
 				if ( debug )
 					System.out.println(gson.toJson(firmwareParams));
 			} catch ( JsonSyntaxException e ) {
 				System.out.println("Response is invalid JSON.");
+				if ( debug )
+					System.out.println(e.getMessage());
 				return new VerifyParamsResult(false, "");
 			}
 
@@ -259,6 +262,9 @@ public class Verifier {
 			return new VerifyParamsResult(false, "");
 		} catch ( Exception e ) {
 			System.out.printf("An unhandled exception occurred.%n%n");
+			if ( debug ) {
+				e.printStackTrace();
+			}
 			return new VerifyParamsResult(false, "");
 		} //try
 
@@ -293,13 +299,13 @@ public class Verifier {
 				return false;
 			}
 
-			Path libFWPath = Paths.get("lib", firmwareName + ".bin");
+			Path libFWPath = Paths.get("lib", firmwareName + ".hex");
 			System.out.printf("Verifying library firmware image...%n");
-			if ( !verifyLibFirmwareImage(libFWPath, libImg.size, libImg.hash) ) {
+			if ( !verifyLibFirmwareImage(libFWPath, libImg.hash) ) {
 				System.out.printf("Could not verify controller firmware because library image does not match manifest.%n%n");
 				return false;
 			}
-			System.out.println("Done.");
+			System.out.printf("Done.%n%n");
 
 			//Get the firmware from the controller
 			if ( platform == Platform.ARDUINO ) {
@@ -341,18 +347,31 @@ public class Verifier {
 
 			System.out.printf("Comparing to firmware in library...%n");
 			byte[] progmem = Files.readAllBytes(Paths.get("progmem.bin"));
-			byte[] libFW = Files.readAllBytes(Paths.get("lib", firmwareName + ".bin"));
-			if ( progmem.length != libFW.length ) {
-				System.out.printf("Controller firmware is not the same size as firmware in library.%n%n");
-				Files.delete(Paths.get("progmem.bin"));
+			try ( Stream<String> lines = Files.lines(Paths.get("lib", firmwareName + ".hex")) ) {
+				int i = 1;
+  				for ( String line : (Iterable<String>)lines::iterator ) {
+  					IntelHexRecord record = new IntelHexRecord(line);
+  					if ( record.recordType == IntelHexRecord.DATA ) {
+	  					if ( !record.checksumValid() ) {
+	  						Files.delete(Paths.get("progmem.bin"));
+	  						System.out.printf("Error in library firmware file. Bad checksum at line %d.%n", i);
+	  					}
+	  					if ( record.byteCount > 0 ) {
+		  					//Check byte by byte
+		  					for ( int j = 0; j < record.byteCount; j++ ) {
+		  						if ( record.data[j] != progmem[record.address + j]) {
+		  							Files.delete(Paths.get("progmem.bin"));
+	  								System.out.printf("Controller firmware does not match firmware in library at byte %d.%n%n", record.address + j);
+	  								return false;
+		  						}
+		  					}
+		  				}
+	  				}
+  					i++;
+				};
+			} catch ( IOException e ) {
+				System.out.printf("Could not open firmware file.%n");
 				return false;
-			}
-			for ( int i = 0; i < libFW.length; i++ ) {
-				if ( progmem[i] != libFW[i] ) {
-					System.out.printf("Controller firmware does not match firmware in library at byte %d.%n%n", i);
-					Files.delete(Paths.get("progmem.bin"));
-					return false;
-				}
 			}
 			Files.delete(Paths.get("progmem.bin"));
 			System.out.printf("Controller firmware matches %s in library.%n%n", firmwareName);
@@ -364,6 +383,9 @@ public class Verifier {
 			System.out.println(e.getMessage());
 			return false;
 		} catch ( Exception e ) {
+			if ( debug ) {
+				e.printStackTrace();
+			}
 			System.out.printf("An unhandled exception occurred.%n");
 			return false;
 		}
@@ -408,23 +430,23 @@ public class Verifier {
 		System.out.printf("Updating firmware images...%n");
 		boolean flagErr = false;
 		for ( Manifest.FirmwareImage img : activeManifest.firmwareImages ) {
-			Path imgPath = Paths.get("lib", img.name + ".bin");
+			Path imgPath = Paths.get("lib", img.name + ".hex");
 			if ( Files.isReadable(imgPath) ) {
 				System.out.printf("%s found. Verifying...%n", img.name);
-				//Get length and SHA1 hash
-				if ( verifyLibFirmwareImage(imgPath, img.size, img.hash) ) {
+				//Get SHA2 hash
+				if ( verifyLibFirmwareImage(imgPath, img.hash) ) {
 					System.out.printf("Done.%n");
 				}
 				else {
 					System.out.printf("%s does not match manifest.%n", img.name);
-					if ( !downloadAndVerifyLibFirmwareImage(imgPath, img.url, img.size, img.hash) )
+					if ( !downloadAndVerifyLibFirmwareImage(imgPath, img.url, img.hash) )
 						flagErr = true;
 				}
 			}
 			else {
 				//Attempt to download
 				System.out.printf("%s was not found.%n", img.name);
-				if ( !downloadAndVerifyLibFirmwareImage(imgPath, img.url, img.size, img.hash) )
+				if ( !downloadAndVerifyLibFirmwareImage(imgPath, img.url, img.hash) )
 					flagErr = true;
 			}
 
@@ -433,11 +455,11 @@ public class Verifier {
 		return !flagErr;
 	}
 
-	public static boolean downloadAndVerifyLibFirmwareImage(Path path, String url, int size, String hash) {
+	public static boolean downloadAndVerifyLibFirmwareImage(Path path, String url, String hash) {
 		System.out.printf("Downloading image from %s...", url);
 		if ( downloadLibFirmwareImage(path, url) ) {
 			System.out.printf("Done.%nVerifying...");
-			if( verifyLibFirmwareImage(path, size, hash) ) {
+			if( verifyLibFirmwareImage(path, hash) ) {
 				System.out.printf("Done.%n");
 				return true;
 			}
@@ -465,14 +487,9 @@ public class Verifier {
 		}
 	}
 
-	public static boolean verifyLibFirmwareImage(Path path, int size, String hash) {
+	public static boolean verifyLibFirmwareImage(Path path, String hash) {
 		try {
-			if ( debug )
-				System.out.printf("File size: %d | Expected size: %d%n", Files.size(path), size);
-			if ( Files.size(path) != size )
-				return false;
-
-			DigestInputStream dis = new DigestInputStream(Files.newInputStream(path), MessageDigest.getInstance("SHA1"));
+			DigestInputStream dis = new DigestInputStream(Files.newInputStream(path), MessageDigest.getInstance("SHA-256"));
 			BufferedInputStream bis = new BufferedInputStream(dis);
 			int i;
 			while ((i = bis.read()) != -1) {}
@@ -487,7 +504,7 @@ public class Verifier {
 			System.out.printf("IO error while verifying image. Image may not be correct.");
 			return false;
 		} catch ( NoSuchAlgorithmException e ) {
-			System.out.printf("SHA1 hash algorithm is not available on your system. Image may not be correct.");
+			System.out.printf("SHA256 hash algorithm is not available on your system. Image may not be correct.");
 			return false;
 		}
 
@@ -615,6 +632,47 @@ public class Verifier {
 	class FirmwareModValue {
 		public String name = "";
 		public int value = Integer.MAX_VALUE; //This should trip any value check if the firmware does not properly respond with a value
+	}
+
+	class IntelHexRecord {
+		public static final int DATA = 0;
+		public static final int END_OF_FILE = 1;
+
+		//Ints to avoid sign issues
+		public int byteCount = 0;
+		public int address = 0;
+		public int recordType = DATA;
+		public byte[] data;
+		public int checksum = 0;
+
+		public IntelHexRecord(String record) {
+			if ( record.length() >= 11 && record.charAt(0) == ':') {
+				byteCount = Integer.parseInt(record.substring(1,3), 16);
+				address = Integer.parseInt(record.substring(3,7), 16);
+				recordType = (byte) (Integer.parseInt(record.substring(7,9), 16) & 0xFF);
+				if ( byteCount > 0 ) {
+					data = new byte[byteCount];
+					for ( int i = 0; i < byteCount; i++ ) {
+						data[i] = (byte) (Integer.parseInt(record.substring(2*i + 9, 2*i + 9 + 2), 16) & 0xFF);
+					}
+				}
+				checksum = Integer.parseInt(record.substring(9 + byteCount*2,9 + byteCount*2 + 2), 16);
+			}
+		}
+
+		public boolean checksumValid() {
+			int sum = byteCount + (address & 0xFF) + ((address & 0xFF00) >> 8) + recordType;
+			if ( data != null ) {
+				for ( byte datum : data ) {
+					sum += ((int) datum & 0xFF);
+				}
+			}
+			sum = (~sum + 1) & 0xFF;
+			if ( sum == checksum ) 
+				return true;
+			else
+				return false;
+		}
 	}
 
 } //GCCVerify

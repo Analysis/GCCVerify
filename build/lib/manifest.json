@@ -1,5 +1,5 @@
 {
-   "timestamp":1498688574,
+   "timestamp":1499550733,
    "modSpecs":[
       {
          "name":"dash_back",
@@ -99,11 +99,10 @@
    ],
    "firmwareImages":[
       {
-         "name":"Hax-WatchingTime-2.1",
+         "name":"Hax-WatchingTime-2.2",
          "permitted":true,
-         "hash":"9DB8C363F9E1290325E7CD697EA599CB2893725E",
-         "size":32670,
-         "url":"https://raw.githubusercontent.com/kaysond/GCCVerify/master/build/lib/Hax-WatchingTime-2.1.bin"
+         "hash":"02C98E9B87EF40CEE624FC7A27CADE46D578E5BF60F921EB7E5619A4155C3208",
+         "url":"https://raw.githubusercontent.com/kaysond/GCCVerify/master/build/lib/Hax-WatchingTime-2.2.hex"
       }
    ]
 }

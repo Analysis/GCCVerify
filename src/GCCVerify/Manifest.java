@@ -87,7 +87,6 @@ public class Manifest {
 		public String name;
 		public boolean permitted;
 		public String hash;
-		public int size;
 		public String url;
 	}
 }

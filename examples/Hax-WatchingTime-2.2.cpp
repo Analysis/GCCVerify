@@ -1,6 +1,6 @@
 /***********************************
  * 
- * Hax/WatchingTime Firmware v2.1
+ * Hax/WatchingTime Firmware v2.2
  * 
  * Modified by Kayson to meet GCCVerify spec 
  * (https://github.com/kaysond/GCCVerify)
@@ -26,7 +26,7 @@
 
 #define FW_NAME "Hax-WatchingTime"
 #define MAJOR_VERSION "2"
-#define MINOR_VERSION "1"
+#define MINOR_VERSION "2"
 
 //Notch value addresses in EEPROM
 //Floats are 4 bytes long in arduino nano

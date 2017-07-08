@@ -43,7 +43,7 @@ Note: The latest GCCVerify.jar is included in the repo so steps 1 and 2 can be s
 * -o : Enables offline mode (does not attempt to update manifest or firmware binaries from github)
 
 ## Pull Requests
-Pull requests welcome. To add your firmware to the manifest, please submit a pull request modifying only lib/manifest.json and adding only your firmware binary. Hash and filesize can be easily found by adding the firmware to your local manifest and enabling debug mode. Ensure the manifest timestamp is correctly updated (unix timestamp in seconds). You must include a link to your source code.
+Pull requests welcome. To add your firmware to the manifest, please submit a pull request modifying only lib/manifest.json and adding only your firmware (you can find the .hex file in the build folder Arduino creates in your temp directory when you compile or upload). Hash (SHA-256) can be easily found by adding the firmware to your local manifest and enabling debug mode. Ensure the manifest timestamp is correctly updated (unix timestamp in seconds). You must include a link to your source code.
 
 ## Microcontroller parameter validation specification
 On boot, the microcontroller serial port must be configured to 9600baud, 8 data bits, 1 stop bit, and no parity. The utility will attempt to reboot the microcontroller, wait 1 second (for bootloaders), then send "GCCVerify" every 250ms for 1s. The microcontroller should accept the magic string "GCCVerify". It is advisable that the microcontroller do not send any serial data until at least 1s after boot, though the utility will attempt to ignore extraneous communication before the JSON object Upon receiving the string, the microcontroller should respond with a JSON-encoded object terminated by "\r\n". The object should contain the following:
@@ -68,3 +68,12 @@ Check the examples folder for a compliant version of the v2 Hax/WatchingTime fir
 
 ## Mods
 To be completed. See [build/lib/manifest.json](build/lib/manifest.json)
+
+## Change Log
+
+### 0.8.1
+* Changed program memory verification to use the Intel hex file used to upload the program instead of a full binary (which caused problems due to unused data sections in flash memory)
+* Changed library firmware hashes to use SHA-256
+
+### 0.8
+* First public release
